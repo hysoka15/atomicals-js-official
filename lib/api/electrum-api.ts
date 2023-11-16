@@ -526,4 +526,20 @@ export class ElectrumApi implements ElectrumApiInterface {
         });
         return p;
     }
+
+    public async getBalanceAddress(address: string): Promise<any> {
+        const { scripthash } = detectAddressTypeToScripthash(address);
+        return this.getBlanceScripthash(scripthash);
+    }
+    public async getBlanceScripthash(scripthash: string): Promise<any> {
+        const p = new Promise((resolve, reject) => {
+            this.call('blockchain.scripthash.get_balance', [scripthash]).then(function (result: any) {
+                let total = result['confirmed'] + result['unconfirmed']
+                resolve(total);
+            }).catch((error) => {
+                reject(error);
+            })
+        });
+        return p;
+    } 
 }
