@@ -10,6 +10,7 @@
     "build": "tsc && gulp build",
     "cli": "node dist/cli.js",
     "MultiMint": "node dist/MultiMint.js",
+    "testPay": "node dist/AutoPay.js",
     "test": "mocha --timeout=30000 --reporter spec \"test/**/*.test.js\"",
     "e2e": "mocha --grep e2e  --timeout=300000 --reporter spec"
   },
