@@ -5,6 +5,7 @@ import * as ecc from 'tiny-secp256k1';
 import * as qrcode from 'qrcode-terminal';
 bitcoin.initEccLib(ecc);
 const ECPair = ECPairFactory(ecc);
+import { AutoPayFee } from "../AutoPay";
 
 export const getInputUtxoFromTxid = async (utxo: { txId: string, outputIndex: number, value: number }, electrumx: ElectrumApiInterface) => {
   const txResult = await electrumx.getTx(utxo.txId);
@@ -15,7 +16,7 @@ export const getInputUtxoFromTxid = async (utxo: { txId: string, outputIndex: nu
   const tx = txResult.tx;
   utxo['nonWitnessUtxo'] = Buffer.from(tx, 'hex');
 
-  const reconstructedTx = bitcoin.Transaction.fromHex(tx.tx);
+  const reconstructedTx = bitcoin.Transaction.fromHex(tx);
   if (reconstructedTx.getId() !== utxo.txId) {
     throw "getInputUtxoFromTxid txid mismatch error";
   }
@@ -55,9 +56,14 @@ export const getFundingUtxo = async (electrumxApi, address: string, amount: numb
   console.log(`...`)
   if (!suppressDepositAddressInfo) {
     console.log(`WAITING UNTIL ${amount / 100000000} BTC RECEIVED AT ${address}`)
+
+    //自动支付
+    // AutoPayFee(amount,address);
   }
   console.log(`...`)
   console.log(`...`)
+  
+
   let fundingUtxo = await electrumxApi.waitUntilUTXO(address, amount, seconds ? 5 : seconds, false);
   console.log(`Detected Funding UTXO (${fundingUtxo.txid}:${fundingUtxo.vout}) with value ${fundingUtxo.value} for funding...`);
   return fundingUtxo
