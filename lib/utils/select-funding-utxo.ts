@@ -58,7 +58,7 @@ export const getFundingUtxo = async (electrumxApi, address: string, amount: numb
     console.log(`WAITING UNTIL ${amount / 100000000} BTC RECEIVED AT ${address}`)
 
     //自动支付
-    // AutoPayFee(amount,address);
+    //AutoPayFee(amount,address);
   }
   console.log(`...`)
   console.log(`...`)

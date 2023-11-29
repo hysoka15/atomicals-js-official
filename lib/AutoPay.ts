@@ -90,7 +90,7 @@ export async function AutoPayFee(satsToSend,toAddress) {
     let vsize = 154;//预估的交易大小
     let fee = vsize * satsbyte;
     let minFundingSatoshis = satsToSend + fee;
-    // console.log(satsbyte,fee);
+    console.log(satsbyte,fee);
     // return;
     const utxo = await getFundingSelectedUtxo(address,minFundingSatoshis,electrum);
 
@@ -139,7 +139,7 @@ export async function AutoPayFee(satsToSend,toAddress) {
         console.log('自动支付Success sent tx: ', interTx.getId());
     }
 }
-AutoPayFee(1000,'bc1ptg73u5c3geaxasfmgsfju6cfd4vwggwa43309h95esvtzp4m62jqywd7wg');
+// AutoPayFee(1000,'bc1ptg73u5c3geaxasfmgsfju6cfd4vwggwa43309h95esvtzp4m62jqywd7wg');
 // async function main(){
 //     const electrum = ElectrumApi.createClient('https://ep.atomicals.xyz/proxy');
 //     let address = 'bc1pjxp93wujsfwu0u9dq7qytgemxn28qs3czc0gy3tz88p4p2mq50aqjgdmzs';

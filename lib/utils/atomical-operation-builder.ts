@@ -816,6 +816,7 @@ export class AtomicalOperationBuilder {
     }
 
     calculateAmountRequiredForReveal(hashLockP2TROutputLen: number = 0): number {
+        return (this.options.satsbyte as any) * 149;// 149是（一输入一输出的交易预估大小）
         const ARGS_BYTES = 20;
         const BITWORK_BYTES = 5 + 10 + 4 + 10 + 4 + 10 + 1 + 10;
         const EXTRA_BUFFER = 10;
@@ -896,7 +897,9 @@ export class AtomicalOperationBuilder {
     */
     addCommitChangeOutputIfRequired(extraInputValue: number, fee: FeeCalculations, pbst: any, address: string) {
         const totalInputsValue = extraInputValue + this.getTotalAdditionalInputValues();
-        const totalOutputsValue = this.getTotalAdditionalOutputValues() + fee.revealFeePlusOutputs;
+        // const totalOutputsValue = this.getTotalAdditionalOutputValues() + fee.revealFeePlusOutputs;
+        //fee.revealFeePlusOutputs字段已经包含了this.getTotalAdditionalOutputValues()
+        const totalOutputsValue = fee.revealFeePlusOutputs;
         const calculatedFee = totalInputsValue - totalOutputsValue;
         // It will be invalid, but at least we know we don't need to add change
         if (calculatedFee <= 0) {
