@@ -10,6 +10,7 @@ import * as qrcode from 'qrcode-terminal';
 import { detectAddressTypeToScripthash, performAddressAliasReplacement } from './utils/address-helpers';
 import { AtomicalsGetFetchType } from './commands/command.interface';
 import { fileReader } from './utils/file-utils';
+import axios from 'axios';
 
 function printOperationResult(data: any, error?: boolean) {
     console.log(JSON.stringify(data, null, 2));
@@ -66,17 +67,54 @@ function resolveAddress(walletInfo: IValidatedWalletInfo, alias: string | undefi
 }
 
 
+async function getRealTimeGas() {
+  let fee = 0;
+    try {
+        const response = await axios.get('https://mempool.space/api/v1/fees/recommended');
+        let currentFastest = response.data.fastestFee;
+        console.log('currentFastest',currentFastest);
+        if(currentFastest <= 60){
+          fee = currentFastest + 15;
+        }else if(currentFastest <= 100){
+          fee = currentFastest + 20;
+        }
+        else if(currentFastest <= 200){
+          fee = currentFastest + 40;
+        }
+        else if(currentFastest <= 260){
+          fee = currentFastest + 50;
+        }else
+        {
+          fee = Math.min(currentFastest + 50,400);
+        }
+        return fee;
+    } catch (error) {
+        console.error('Error fetching Bitcoin fees:', error);
+        return 0;
+    }
+}
+
 async function main(){
     try {
       const configContainers = process.env.CONTAINERS || '';
       const containers = configContainers.split(';').map(item => item.trim().split(' '));
 
       let satsbyteStr = process.env.satsbyte || '10';
+      let bitworkc = process.env.bitworkc;
       for(let i = 0;i < containers.length;i ++){
         const containerName = containers[i][0];
         const itemName = containers[i][1];
         const manifestFile = containers[i][2];
         console.log(`第${i+1}次mint ${containerName} ${itemName} ${manifestFile}...`);
+
+        let finalSatsbyte = parseInt(satsbyteStr);
+
+        if(process.env.realTimeGas=='1'){
+          let realTimeGas = await getRealTimeGas();
+          if(realTimeGas != 0){
+            finalSatsbyte = realTimeGas;
+          }
+        }
 
         try {
           const walletInfo = await validateWalletStorage();
@@ -85,14 +123,15 @@ async function main(){
           let ownerWalletRecord = resolveWalletAliasNew(walletInfo, undefined, walletInfo.primary);
           let fundingRecord = resolveWalletAliasNew(walletInfo, undefined, walletInfo.funding);
           const result: any = await atomicals.mintContainerItemInteractive(containerName, itemName, manifestFile, initialOwnerAddress.address, fundingRecord.WIF, ownerWalletRecord, {
-            satsbyte: parseInt(satsbyteStr),
+            satsbyte: finalSatsbyte,
             satsoutput: 1000,
+            bitworkc: bitworkc,
           });
           handleResultLogging(result);
         } catch (error) {
           console.log(error);
         }
-
+        console.log('finalSatsbyte',finalSatsbyte);
         if(i != containers.length - 1){
           console.log(`10秒后开始下一次...`);
           await sleeper(10);

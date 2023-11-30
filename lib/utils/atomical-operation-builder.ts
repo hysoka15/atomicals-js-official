@@ -816,7 +816,7 @@ export class AtomicalOperationBuilder {
     }
 
     calculateAmountRequiredForReveal(hashLockP2TROutputLen: number = 0): number {
-        return (this.options.satsbyte as any) * 149;// 149是（一输入一输出的交易预估大小）
+        return (this.options.satsbyte as any) * 159;// 149是（一输入一输出的交易预估大小）
         const ARGS_BYTES = 20;
         const BITWORK_BYTES = 5 + 10 + 4 + 10 + 4 + 10 + 1 + 10;
         const EXTRA_BUFFER = 10;
