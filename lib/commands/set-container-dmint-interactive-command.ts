@@ -8,6 +8,7 @@ import {
   initEccLib,
 } from "bitcoinjs-lib";
 import { getAndCheckAtomicalInfo, logBanner, readJsonFileAsCompleteDataObjectEncodeAtomicalIds } from "./command-helpers";
+import { isValidBitworkString } from "../utils/atomical-format-helpers";
 import { AtomicalOperationBuilder } from "../utils/atomical-operation-builder";
 import { BaseRequestOptions } from "../interfaces/api.interface";
 import { IWalletRecord } from "../utils/validate-wallet-storage";
@@ -15,35 +16,64 @@ import { IWalletRecord } from "../utils/validate-wallet-storage";
 const tinysecp: TinySecp256k1Interface = require('tiny-secp256k1');
 initEccLib(tinysecp as any);
 
-export function validateDmint(obj) {
+interface DmintManifestInteface {
+  v: string,
+  mint_height: number,
+  items: number,
+  rules: {
+    o?: { [script: string]: {v: number, id?: string} },
+    p: string,
+    bitworkc?: string,
+    bitworkr?: string,
+  }[],
+}
+
+export function validateDmint(
+  obj: {dmint?: DmintManifestInteface} | undefined,
+) {
   if (!obj) {
     return false;
   }
-  if (!obj.dmint) {
+  const dmint = obj.dmint;
+  if (!dmint) {
     return false;
   }
-  const mh = obj.dmint.mint_length;
-  if (mh) {
+  for (const {o, p, bitworkc, bitworkr} of dmint.rules) {
+      try {
+          new RegExp(p);
+      } catch (e) {
+          throw `Invalid pattern: ${p}.\n${e}`;
+      }
+      if (bitworkc && !isValidBitworkString(bitworkc)) {
+          return false;
+      }
+      if (bitworkr && !isValidBitworkString(bitworkr)) {
+          return false;
+      }
+  }
+  const mh = dmint.mint_height;
+  if (mh === 0) {
+    return true;
+  }
+  if (mh != undefined) {
     if (isNaN(mh)) {
       return false;
     }
     if (mh < 0 || mh > 10000000) {
       return false;
     }
-  } else {
-    return mh !== 0;
   }
-
-  
+  return false;
 }
+
 export class SetContainerDmintInteractiveCommand implements CommandInterface {
   constructor(
     private electrumApi: ElectrumApiInterface,
+    private options: BaseRequestOptions,
     private containerName: string,
     private filename: string,
     private owner: IWalletRecord,
     private funding: IWalletRecord,
-    private options: BaseRequestOptions
   ) {
 
   }
@@ -58,6 +88,7 @@ export class SetContainerDmintInteractiveCommand implements CommandInterface {
     const { atomicalInfo, locationInfo, inputUtxoPartial } = await getAndCheckAtomicalInfo(this.electrumApi, this.containerName, this.owner.address, 'NFT', 'container');
     const atomicalBuilder = new AtomicalOperationBuilder({
       electrumApi: this.electrumApi,
+      rbf: this.options.rbf,
       satsbyte: this.options.satsbyte,
       address: this.owner.address,
       disableMiningChalk: this.options.disableMiningChalk,

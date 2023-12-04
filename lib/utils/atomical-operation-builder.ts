@@ -13,7 +13,15 @@ import {
     Psbt,
 } from "bitcoinjs-lib";
 initEccLib(tinysecp as any);
-import { AtomicalsPayload, NETWORK, calculateFundsRequired, getAndCheckAtomicalInfo, prepareCommitRevealConfig, prepareFilesDataAsObject } from "../commands/command-helpers";
+import {
+    AtomicalsPayload,
+    NETWORK,
+    RBF_INPUT_SEQUENCE,
+    calculateFundsRequired,
+    getAndCheckAtomicalInfo,
+    prepareCommitRevealConfig,
+    prepareFilesDataAsObject
+} from "../commands/command-helpers";
 import { getFundingUtxo } from "./select-funding-utxo";
 import { sleeper } from "./utils";
 import { witnessStackToScriptWitness } from "../commands/witness_stack_to_script_witness";
@@ -25,9 +33,9 @@ const DEFAULT_SATS_ATOMICAL_UTXO = 1000;
 const SEND_RETRY_SLEEP_SECONDS = 15;
 const SEND_RETRY_ATTEMPTS = 20;
 const DUST_AMOUNT = 546;
-const BASE_BYTES = 10;
-const INPUT_BYTES_BASE = 148;
-const OUTPUT_BYTES_BASE = 34;
+const BASE_BYTES = 10.5;
+const INPUT_BYTES_BASE = 57.5;
+const OUTPUT_BYTES_BASE = 43;
 const OP_RETURN_BYTES: number = 20;
 const EXCESSIVE_FEE_LIMIT: number = 500000; // Limit to 1/200 of a BTC for now
 
@@ -95,6 +103,7 @@ export enum REQUEST_NAME_TYPE {
 
 export interface AtomicalOperationBuilderOptions {
     electrumApi: ElectrumApiInterface;
+    rbf?: boolean;
     satsbyte?: number; // satoshis                    
     address: string;
     opType: 'nft' | 'ft' | 'dft' | 'dmt' | 'dat' | 'mod' | 'evt' | 'sl' | 'x' | 'y'
@@ -185,6 +194,10 @@ export class AtomicalOperationBuilder {
                 throw new Error('dmtOptions required for dmt type')
             }
         }
+    }
+
+    setRBF(value: boolean) {
+        this.options.rbf = value;
     }
 
     setRequestContainer(name: string) {
@@ -517,7 +530,7 @@ export class AtomicalOperationBuilder {
         const mockBaseCommitForFeeCalculation: { scriptP2TR, hashLockP2TR } = prepareCommitRevealConfig(this.options.opType, fundingKeypair, mockAtomPayload)
         const fees: FeeCalculations = this.calculateFeesRequiredForAccumulatedCommitAndReveal(mockBaseCommitForFeeCalculation.hashLockP2TR.redeem.output.length);
         ////////////////////////////////////////////////////////////////////////
-        // Begin Reveal Transaction
+        // Begin Commit Transaction
         ////////////////////////////////////////////////////////////////////////
         if (performBitworkForCommitTx) {
             copiedData['args'] = copiedData['args'] || {};
@@ -540,6 +553,7 @@ export class AtomicalOperationBuilder {
                 let psbtStart = new Psbt({ network: NETWORK });
                 psbtStart.setVersion(1);
                 psbtStart.addInput({
+                    sequence: this.options.rbf ? RBF_INPUT_SEQUENCE : undefined,
                     hash: fundingUtxo.txid,
                     index: fundingUtxo.index,
                     witnessUtxo: { value: fundingUtxo.value, script: Buffer.from(fundingKeypair.output, 'hex') },
@@ -564,8 +578,8 @@ export class AtomicalOperationBuilder {
                 if (performBitworkForCommitTx && hasValidBitwork(checkTxid, this.bitworkInfoCommit?.prefix as any, this.bitworkInfoCommit?.ext as any)) {
                     process.stdout.clearLine(0);
                     process.stdout.cursorTo(0);
-                    process.stdout.write(chalk.green(checkTxid, ' nonces: ' + noncesGenerated));
-                    console.log('\nBitwork matches commit txid! ', prelimTx.getId(), '@ time: ' + Math.floor(Date.now() / 1000))
+                    process.stdout.write(chalk.green(checkTxid, ` nonces: ${noncesGenerated} (${nonce})`));
+                    console.log('\nBitwork matches commit txid! ', prelimTx.getId(), `@ time: ${unixtime}`)
                     // We found a solution, therefore broadcast it 
                     const interTx = psbtStart.extractTransaction();
                     const rawtx = interTx.toHex();
@@ -620,6 +634,7 @@ export class AtomicalOperationBuilder {
             let psbt = new Psbt({ network: NETWORK });
             psbt.setVersion(1);
             psbt.addInput({
+                sequence: this.options.rbf ? RBF_INPUT_SEQUENCE : undefined,
                 hash: utxoOfCommitAddress.txid,
                 index: utxoOfCommitAddress.vout,
                 witnessUtxo: { value: utxoOfCommitAddress.value, script: hashLockP2TR.output! },
@@ -632,6 +647,7 @@ export class AtomicalOperationBuilder {
             // Add any additional inputs that were assigned
             for (const additionalInput of this.inputUtxos) {
                 psbt.addInput({
+                    sequence: this.options.rbf ? RBF_INPUT_SEQUENCE : undefined,
                     hash: additionalInput.utxo.hash,
                     index: additionalInput.utxo.index,
                     witnessUtxo: additionalInput.utxo.witnessUtxo,
@@ -654,6 +670,7 @@ export class AtomicalOperationBuilder {
 
             if (parentAtomicalInfo) {
                 psbt.addInput({
+                    sequence: this.options.rbf ? RBF_INPUT_SEQUENCE : undefined,
                     hash: parentAtomicalInfo.parentUtxoPartial.hash,
                     index: parentAtomicalInfo.parentUtxoPartial.index,
                     witnessUtxo: parentAtomicalInfo.parentUtxoPartial.witnessUtxo,
@@ -758,6 +775,7 @@ export class AtomicalOperationBuilder {
         }
         if (this.options.opType === 'dat') {
             ret['data']['dataId'] = revealTxid + 'i0';
+            ret['data']['urn'] = 'atom:btc:dat:' + revealTxid + 'i0';
         }
         return ret;
     }
@@ -821,24 +839,24 @@ export class AtomicalOperationBuilder {
         const BITWORK_BYTES = 5 + 10 + 4 + 10 + 4 + 10 + 1 + 10;
         const EXTRA_BUFFER = 10;
 
-        return (this.options.satsbyte as any) *
+        return Math.ceil((this.options.satsbyte as any) *
             (BASE_BYTES +
                 ((1 + this.inputUtxos.length) * INPUT_BYTES_BASE) +
                 (this.additionalOutputs.length * OUTPUT_BYTES_BASE) +
-                OP_RETURN_BYTES +
+                (OP_RETURN_BYTES +
                 ARGS_BYTES +
                 BITWORK_BYTES +
                 EXTRA_BUFFER +
-                hashLockP2TROutputLen
-            )
+                hashLockP2TROutputLen) / 4   // When used as witness data in a segwit input, the size in vbytes is the size in bytes divided by four.
+            ))
     }
 
     calculateFeesRequiredForCommit(): number {
-        return (this.options.satsbyte as any) *
+        return Math.ceil((this.options.satsbyte as any) *
             (BASE_BYTES +
                 (1 * INPUT_BYTES_BASE) +
                 (1 * OUTPUT_BYTES_BASE)
-            )
+            ))
     }
 
     getAdditionalFundingRequiredForReveal(): number | null {
@@ -882,10 +900,11 @@ export class AtomicalOperationBuilder {
             return;
         }
         // There were some excess satoshis, but let's verify that it meets the dust threshold to make change
-        if (excessSatoshisFound >= DUST_AMOUNT) {
+        const changeValue = excessSatoshisFound - OUTPUT_BYTES_BASE * this.options.satsbyte!! // minus an extra output for change
+        if (changeValue >= DUST_AMOUNT) {
             this.addOutput({
                 address: address,
-                value: excessSatoshisFound
+                value: changeValue
             })
         }
     }
@@ -897,8 +916,6 @@ export class AtomicalOperationBuilder {
     */
     addCommitChangeOutputIfRequired(extraInputValue: number, fee: FeeCalculations, pbst: any, address: string) {
         const totalInputsValue = extraInputValue + this.getTotalAdditionalInputValues();
-        // const totalOutputsValue = this.getTotalAdditionalOutputValues() + fee.revealFeePlusOutputs;
-        //fee.revealFeePlusOutputs字段已经包含了this.getTotalAdditionalOutputValues()
         const totalOutputsValue = fee.revealFeePlusOutputs;
         const calculatedFee = totalInputsValue - totalOutputsValue;
         // It will be invalid, but at least we know we don't need to add change
@@ -912,10 +929,11 @@ export class AtomicalOperationBuilder {
             return;
         }
         // There were some excess satoshis, but let's verify that it meets the dust threshold to make change
-        if (differenceBetweenCalculatedAndExpected >= DUST_AMOUNT) {
+        const changeValue = differenceBetweenCalculatedAndExpected - OUTPUT_BYTES_BASE * this.options.satsbyte!! // minus an extra output for change
+        if (changeValue >= DUST_AMOUNT) {
             pbst.addOutput({
                 address: address,
-                value: differenceBetweenCalculatedAndExpected
+                value: changeValue
             })
         }
     }

@@ -15,11 +15,12 @@ import { jsonFileWriter } from "../utils/file-utils";
 import { detectAddressTypeToScripthash, performAddressAliasReplacement } from "../utils/address-helpers";
 import { toXOnly } from "../utils/create-key-pair";
 import { getKeypairInfo, KeyPairInfo } from "../utils/address-keypair-path";
-import { NETWORK, calculateUtxoFundsRequired, logBanner } from "./command-helpers";
+import { NETWORK, RBF_INPUT_SEQUENCE, calculateUtxoFundsRequired, logBanner } from "./command-helpers";
 import { onlyUnique } from "../utils/utils";
 import { IValidatedWalletInfo } from "../utils/validate-wallet-storage";
 import { compactIdToOutpoint, isAtomicalId } from "../utils/atomical-format-helpers";
 import { ATOMICALS_PROTOCOL_ENVELOPE_ID } from "../types/protocol-tags";
+import { BaseRequestOptions } from "../interfaces/api.interface";
 const tinysecp: TinySecp256k1Interface = require('tiny-secp256k1');
 initEccLib(tinysecp as any);
 const ECPair: ECPairAPI = ECPairFactory(tinysecp);
@@ -62,12 +63,14 @@ export interface TransferConfigInterface {
 export class TransferInteractiveBuilderCommand implements CommandInterface {
   constructor(
     private electrumApi: ElectrumApiInterface,
+    private options: BaseRequestOptions,
     private currentOwnerAtomicalWIF: string,
     private fundingWIF: string,
     private validatedWalletInfo: IValidatedWalletInfo,
     private satsbyte: number,
     private nofunding: boolean,
     private atomicalIdReceipt?: string,
+    private atomicalIdReceiptType?: string,
     private forceSkipValidation?: boolean,
   ) {
     console.log(this.atomicalIdReceipt)
@@ -371,6 +374,7 @@ export class TransferInteractiveBuilderCommand implements CommandInterface {
       // Add the atomical input, the value from the input counts towards the total satoshi amount required
       const { output } = detectAddressTypeToScripthash(keyPairAtomical.address);
       psbt.addInput({
+        sequence: this.options.rbf ? RBF_INPUT_SEQUENCE : undefined,
         hash: utxo.txid,
         index: utxo.index,
         witnessUtxo: { value: utxo.value, script: Buffer.from(output, 'hex') },
@@ -399,9 +403,8 @@ export class TransferInteractiveBuilderCommand implements CommandInterface {
 
     if (this.atomicalIdReceipt) {
       const outpoint = compactIdToOutpoint(this.atomicalIdReceipt);
-      console.log('outpoint', outpoint);
       const atomEnvBuf = Buffer.from(ATOMICALS_PROTOCOL_ENVELOPE_ID, 'utf8');
-      const payOpBuf = Buffer.from('p', 'utf8');
+      const payOpBuf = Buffer.from(this.atomicalIdReceiptType || 'p', 'utf8');
       const outpointBuf = Buffer.from(outpoint, 'hex')
       const embed = bitcoin.payments.embed({ data: [atomEnvBuf, payOpBuf, outpointBuf] });
       const paymentRecieptOpReturn = embed.output!
@@ -436,6 +439,7 @@ export class TransferInteractiveBuilderCommand implements CommandInterface {
     if (!this.nofunding) {
       // Add the funding input
       psbt.addInput({
+        sequence: this.options.rbf ? RBF_INPUT_SEQUENCE : undefined,
         hash: utxo.txid,
         index: utxo.outputIndex,
         witnessUtxo: { value: utxo.value, script: keyPairFunding.output },

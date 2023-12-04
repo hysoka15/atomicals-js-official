@@ -23,6 +23,4 @@ commit-command-output*.json
 *.ntvs*
 *.njsproj
 *.sln
-.env
 .gitkeep
-dmint/
