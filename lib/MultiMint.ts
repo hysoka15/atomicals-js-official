@@ -53,16 +53,16 @@ async function main(){
         let satsbyteStr = process.env.satsbyte || '10';
         for(let i = 0; i < repeatTimes; i++){
             console.log(`第${i+1}次mint${ticker}...`);
-            const result: any = await atomicals.mintDftInteractive(walletRecord.address, ticker, fundingRecord.WIF, {
-                satsbyte: parseInt(satsbyteStr),
-                disableMiningChalk: undefined
-              });
-              handleResultLogging(result);
+            // const result: any = await atomicals.mintDftInteractive(walletRecord.address, ticker, fundingRecord.WIF, {
+            //     satsbyte: parseInt(satsbyteStr),
+            //     disableMiningChalk: undefined
+            //   });
+            //   handleResultLogging(result);
 
-              if(i != repeatTimes - 1){
-                console.log(`10秒后开始下一次...`);
-                await sleeper(10);
-              }
+            //   if(i != repeatTimes - 1){
+            //     console.log(`10秒后开始下一次...`);
+            //     await sleeper(10);
+            //   }
         }
         console.log(`${repeatTimes}全部mint完毕...`);
     }catch (error: any) {

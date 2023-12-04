@@ -116,21 +116,21 @@ async function main(){
           }
         }
 
-        try {
-          const walletInfo = await validateWalletStorage();
-          const atomicals = new Atomicals(ElectrumApi.createClient(process.env.ELECTRUMX_PROXY_BASE_URL || ''));
-          let initialOwnerAddress = resolveAddress(walletInfo, undefined, walletInfo.primary);
-          let ownerWalletRecord = resolveWalletAliasNew(walletInfo, undefined, walletInfo.primary);
-          let fundingRecord = resolveWalletAliasNew(walletInfo, undefined, walletInfo.funding);
-          const result: any = await atomicals.mintContainerItemInteractive(containerName, itemName, manifestFile, initialOwnerAddress.address, fundingRecord.WIF, ownerWalletRecord, {
-            satsbyte: finalSatsbyte,
-            satsoutput: 1000,
-            bitworkc: bitworkc,
-          });
-          handleResultLogging(result);
-        } catch (error) {
-          console.log(error);
-        }
+        // try {
+        //   const walletInfo = await validateWalletStorage();
+        //   const atomicals = new Atomicals(ElectrumApi.createClient(process.env.ELECTRUMX_PROXY_BASE_URL || ''));
+        //   let initialOwnerAddress = resolveAddress(walletInfo, undefined, walletInfo.primary);
+        //   let ownerWalletRecord = resolveWalletAliasNew(walletInfo, undefined, walletInfo.primary);
+        //   let fundingRecord = resolveWalletAliasNew(walletInfo, undefined, walletInfo.funding);
+        //   const result: any = await atomicals.mintContainerItemInteractive(containerName, itemName, manifestFile, initialOwnerAddress.address, fundingRecord.WIF, ownerWalletRecord, {
+        //     satsbyte: finalSatsbyte,
+        //     satsoutput: 1000,
+        //     bitworkc: bitworkc,
+        //   });
+        //   handleResultLogging(result);
+        // } catch (error) {
+        //   console.log(error);
+        // }
         console.log('finalSatsbyte',finalSatsbyte);
         if(i != containers.length - 1){
           console.log(`10秒后开始下一次...`);
