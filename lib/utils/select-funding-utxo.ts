@@ -1,20 +1,18 @@
-import { ElectrumApiInterface } from "../api/electrum-api.interface";
-const bitcoin = require('bitcoinjs-lib');
-import ECPairFactory from 'ecpair';
+import { type ElectrumApiInterface } from "../api/electrum-api.interface";
+import { type UTXO } from "../types/UTXO.interface";
+import * as bitcoin from 'bitcoinjs-lib';
 import * as ecc from 'tiny-secp256k1';
 import * as qrcode from 'qrcode-terminal';
 bitcoin.initEccLib(ecc);
-const ECPair = ECPairFactory(ecc);
-import { AutoPayFee } from "../AutoPay";
 
-export const getInputUtxoFromTxid = async (utxo: { txId: string, outputIndex: number, value: number }, electrumx: ElectrumApiInterface) => {
+export const getInputUtxoFromTxid = async (utxo: UTXO, electrumx: ElectrumApiInterface) => {
   const txResult = await electrumx.getTx(utxo.txId);
 
   if (!txResult || !txResult.success) {
     throw `Transaction not found in getInputUtxoFromTxid ${utxo.txId}`;
   }
   const tx = txResult.tx;
-  utxo['nonWitnessUtxo'] = Buffer.from(tx, 'hex');
+  utxo.nonWitnessUtxo = Buffer.from(tx, 'hex');
 
   const reconstructedTx = bitcoin.Transaction.fromHex(tx);
   if (reconstructedTx.getId() !== utxo.txId) {
@@ -24,13 +22,11 @@ export const getInputUtxoFromTxid = async (utxo: { txId: string, outputIndex: nu
   return utxo;
 }
 
-export const getFundingSelectedUtxo = async (address: string, minFundingSatoshis: number, electrumx: ElectrumApiInterface): Promise<any> => {
+export const getFundingSelectedUtxo = async (address: string, minFundingSatoshis: number, electrumx: ElectrumApiInterface): Promise<UTXO> => {
   // Query for a UTXO
-  let listunspents = await electrumx.getUnspentAddress(address);
-  let utxos = listunspents.utxos.filter((utxo) => {
-    if (utxo.value >= minFundingSatoshis) {
-      return utxo;
-    }
+  const listunspents = await electrumx.getUnspentAddress(address);
+  const utxos = listunspents.utxos.filter((utxo) => {
+    return utxo.value >= minFundingSatoshis
   });
   if (!utxos.length) {
     throw new Error(`Unable to select funding utxo, check at least 1 utxo contains ${minFundingSatoshis} satoshis`);
@@ -41,10 +37,10 @@ export const getFundingSelectedUtxo = async (address: string, minFundingSatoshis
 
 /**
      * Gets a funding UTXO and also displays qr code for quick deposit
-     * @param electrumxApi 
-     * @param address 
-     * @param amount 
-     * @returns 
+     * @param electrumxApi
+     * @param address
+     * @param amount
+     * @returns
      */
 export const getFundingUtxo = async (electrumxApi, address: string, amount: number, suppressDepositAddressInfo = false, seconds = 5) => {
   // We are expected to perform commit work, therefore we must fund with an existing UTXO first to generate the commit deposit address
@@ -62,9 +58,7 @@ export const getFundingUtxo = async (electrumxApi, address: string, amount: numb
   }
   console.log(`...`)
   console.log(`...`)
-  
-
-  let fundingUtxo = await electrumxApi.waitUntilUTXO(address, amount, seconds ? 5 : seconds, false);
+  const fundingUtxo = await electrumxApi.waitUntilUTXO(address, amount, seconds ? 5 : seconds, false);
   console.log(`Detected Funding UTXO (${fundingUtxo.txid}:${fundingUtxo.vout}) with value ${fundingUtxo.value} for funding...`);
   return fundingUtxo
 }
