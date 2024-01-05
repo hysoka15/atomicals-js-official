@@ -1575,11 +1575,14 @@ program.command('mint-dft')
       let fundingRecord = resolveWalletAliasNew(walletInfo, options.funding, walletInfo.funding);
       const sats = parseInt(options.satsbyte);
 
+      const envReceiverAddress = process.env.RECEIVER_ADDRESS || '';
+      let toAddress = envReceiverAddress != '' ? envReceiverAddress : walletRecord.address;
+
       const result: any = await atomicals.mintDftInteractive({
         rbf: options.rbf,
         satsbyte: parseInt(options.satsbyte),
         disableMiningChalk: options.disablechalk,
-      }, walletRecord.address, ticker, fundingRecord.WIF);
+      }, toAddress, ticker, fundingRecord.WIF);
       handleResultLogging(result, true);
     } catch (error) {
       console.log(error);
