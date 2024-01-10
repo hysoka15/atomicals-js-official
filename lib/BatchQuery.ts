@@ -139,6 +139,7 @@ async function main(){
     for(let i = 9000;i > 8000;i --){
         try {
             let itemId = i.toString();
+            itemId = String(itemId).padStart(5, '0');
             console.log('查询 ',itemId);
             const atomicals = new Atomicals(ElectrumApi.createClient(process.env.ELECTRUMX_PROXY_BASE_URL || ''));
             const modifiedStripped = containerName.indexOf('#') === 0 ? containerName.substring(1) : containerName;
