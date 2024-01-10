@@ -11,17 +11,57 @@ import { detectAddressTypeToScripthash, performAddressAliasReplacement } from '.
 import { AtomicalsGetFetchType } from './commands/command.interface';
 import { fileReader } from './utils/file-utils';
 import axios from 'axios';
+import * as chalk from 'chalk';
+import * as quotes from 'success-motivational-quotes'; 
 
 function printOperationResult(data: any, error?: boolean) {
     console.log(JSON.stringify(data, null, 2));
 }
 
-function handleResultLogging(result: any) {
-    if (!result || !result.success) {
-        printOperationResult(result, true);
-    } else {
-        printOperationResult(result.data);
-    }
+/////////////////////////////////////////////////////////////////////////////////////////////
+// General Helper Functions
+/////////////////////////////////////////////////////////////////////////////////////////////
+function printSuccess(data: any, showDonation?: boolean) {
+  console.log(JSON.stringify(data, null, 2));
+  if (!showDonation) {
+    return;
+  }
+
+  if (process.env.DISABLE_DONATE_QUOTE && process.env.DISABLE_DONATE_QUOTE === 'true') {
+    return;
+  }
+  console.log(chalk.blue("\n\n------------------------------------------------------------------------------"));
+
+  let q = 'Recommend to your children virtue; that alone can make them happy, not gold.';
+  let by = 'Ludwig van Beethoven';
+  try {
+    const quoteObj = quotes.getTodaysQuote();
+    q = quoteObj.body;
+    by = quoteObj.by;
+  } catch (ex) {
+    // Lib not installed
+  }
+  console.log(chalk.green(q));
+  console.log(chalk.green('- ' + by));
+  console.log(chalk.blue("------------------------------------------------------------------------------\n"))
+  const donate = 'bc1pl6k2z5ra403zfeyevzsu7llh0mdqqn4802p4uqfhz6l7qzddq2mqduqvc6';
+  console.log('Thank you for your support and contributions to Atomicals CLI development! ❤️');
+  console.log(`Donation address: ${donate}\n`);
+  console.log(`Even a little goes a long way!\n`);
+  console.log(`Scan QR Code to Donate:`);
+  qrcode.generate(donate, { small: true });
+}
+function printFailure(data: any) {
+  console.log(JSON.stringify(data, null, 2));
+}
+
+function handleResultLogging(result: any, showDonation?: boolean) {
+  if (!result || !result.success || !result.data) {
+    printFailure(result);
+    process.exit(1);
+  } else {
+    printSuccess(result.data, showDonation);
+  }
 }
 
 function resolveWalletAliasNew(walletInfo: IValidatedWalletInfo, alias: string | undefined, defaultValue: any): IWalletRecord {
@@ -95,19 +135,33 @@ async function getRealTimeGas() {
 }
 
 async function main(){
-    let container = 'fishfaceman';
+    let containerName = 'fishfaceman';
     for(let i = 9000;i > 8000;i --){
         try {
-          
             let itemId = i.toString();
             console.log('查询 ',itemId);
             const atomicals = new Atomicals(ElectrumApi.createClient(process.env.ELECTRUMX_PROXY_BASE_URL || ''));
-            const modifiedStripped = container.indexOf('#') === 0 ? container.substring(1) : container;
+            const modifiedStripped = containerName.indexOf('#') === 0 ? containerName.substring(1) : containerName;
             const result: any = await atomicals.getAtomicalByContainerItem(modifiedStripped, itemId);
             // console.log(JSON.stringify(result, null, 2));
             if(result.success == true && result.data.status == undefined)
             {
                 console.log('漏网之鱼',itemId);
+                const satsbyte = 70;
+                const manifestFile = `./${containerName}/item-${itemId}.json`
+
+                const walletInfo = await validateWalletStorage();
+                let initialOwnerAddress = resolveAddress(walletInfo, undefined, walletInfo.primary);
+                let ownerWalletRecord = resolveWalletAliasNew(walletInfo, undefined, walletInfo.primary);
+                let fundingRecord = resolveWalletAliasNew(walletInfo, undefined, walletInfo.funding);
+                const result: any = await atomicals.mintContainerItemInteractive({
+                  rbf: undefined,
+                  meta: undefined,
+                  ctx: undefined,
+                  init: undefined,
+                  satsbyte: satsbyte,
+                }, containerName, itemId, manifestFile, initialOwnerAddress.address, fundingRecord.WIF, ownerWalletRecord);
+                handleResultLogging(result, true);
             }else
             {
               console.log(itemId,'已经被占');
