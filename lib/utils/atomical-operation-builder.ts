@@ -64,6 +64,7 @@ import { witnessStackToScriptWitness } from "../commands/witness_stack_to_script
 import { IInputUtxoPartial } from "../types/UTXO.interface";
 import { IWalletRecord } from "./validate-wallet-storage";
 import { parentPort, Worker } from "worker_threads";
+import * as fs from "fs"
 
 const ECPair: ECPairAPI = ECPairFactory(tinysecp);
 export const DEFAULT_SATS_BYTE = 10;
@@ -520,6 +521,24 @@ export class AtomicalOperationBuilder {
         let scriptP2TR: any = null;
         let hashLockP2TR: any = null;
 
+        // payload to a file for replay if needed
+        const replayRevealFileName = `reveal-replay-${fundingKeypair.address}}`
+        if (fs.existsSync(replayRevealFileName)) {
+            console.log("Need to replay reveal tx for", fundingKeypair.address)
+            const rawtx = fs.readFileSync(replayRevealFileName, {
+                encoding: "utf-8",
+            })
+            if (!(await this.broadcastWithRetries(rawtx))) {
+                console.log("Error replay reveal tx", rawtx);
+                throw new Error(
+                    "Unable to broadcast reveal transaction after attempts"
+                );
+            } else {
+                console.log("Success replay reveal tx");
+            }
+            fs.unlinkSync(replayRevealFileName)
+        }
+
         if (this.options.meta) {
             this.setMeta(
                 await AtomicalOperationBuilder.getDataObjectFromStringTypeHints(
@@ -654,7 +673,7 @@ export class AtomicalOperationBuilder {
         const fees: FeeCalculations =
             this.calculateFeesRequiredForAccumulatedCommitAndReveal(
                 mockBaseCommitForFeeCalculation.hashLockP2TR.redeem.output
-                    .length
+                    .length,performBitworkForRevealTx
             );
 
         ////////////////////////////////////////////////////////////////////////
@@ -995,7 +1014,7 @@ export class AtomicalOperationBuilder {
             }
 
             const revealTx = psbt.extractTransaction();
-            console.log("\nPrint raw tx in case of broadcast failure", revealTx.toHex());
+            // console.log("\nPrint raw tx in case of broadcast failure", revealTx.toHex());
             const checkTxid = revealTx.getId();
             logMiningProgressToConsole(
                 performBitworkForRevealTx,
@@ -1034,8 +1053,12 @@ export class AtomicalOperationBuilder {
                 console.log("\nBroadcasting tx...", revealTx.getId());
                 const interTx = psbt.extractTransaction();
                 const rawtx = interTx.toHex();
+		
                 if (!(await this.broadcastWithRetries(rawtx))) {
                     console.log("Error sending", revealTx.getId(), rawtx);
+                    //写入广播失败的rawtx
+                    fs.writeFileSync(replayRevealFileName, rawtx);
+
                     throw new Error(
                         "Unable to broadcast reveal transaction after attempts"
                     );
@@ -1127,7 +1150,7 @@ export class AtomicalOperationBuilder {
     }
 
     calculateAmountRequiredForReveal(
-        hashLockP2TROutputLen: number = 0
+        hashLockP2TROutputLen: number = 0,performBitworkForRevealTx:boolean=false
     ): number {
         // <Previous txid> <Output index> <Length of scriptSig> <Sequence number>
         // 32 + 4 + 1 + 4 = 41
@@ -1143,7 +1166,7 @@ export class AtomicalOperationBuilder {
         } else if (hashLockP2TROutputLen <= 0xffffffff) {
             hashLockCompactSizeBytes = 5;
         }
-
+        let bitR = performBitworkForRevealTx ? 1 : 0;
         return Math.ceil(
             (this.options.satsbyte as any) *
                 (BASE_BYTES +
@@ -1153,7 +1176,8 @@ export class AtomicalOperationBuilder {
                     // Additional inputs
                     this.inputUtxos.length * INPUT_BYTES_BASE +
                     // Outputs
-                    this.additionalOutputs.length * OUTPUT_BYTES_BASE)
+                    this.additionalOutputs.length * OUTPUT_BYTES_BASE +
+                    bitR * OUTPUT_BYTES_BASE)
         );
     }
 
@@ -1179,10 +1203,10 @@ export class AtomicalOperationBuilder {
      * @returns
      */
     calculateFeesRequiredForAccumulatedCommitAndReveal(
-        hashLockP2TROutputLen: number = 0
+        hashLockP2TROutputLen: number = 0,performBitworkForRevealTx:boolean = false
     ): FeeCalculations {
         const revealFee = this.calculateAmountRequiredForReveal(
-            hashLockP2TROutputLen
+            hashLockP2TROutputLen,performBitworkForRevealTx
         );
         const commitFee = this.calculateFeesRequiredForCommit();
         const commitAndRevealFee = commitFee + revealFee;
