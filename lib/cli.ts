@@ -213,6 +213,16 @@ function resolveAddress(walletInfo: IValidatedWalletInfo, alias: string | undefi
   throw 'No wallet alias or valid address found: ' + alias;
 }
 
+import axios, { AxiosResponse } from "axios";
+const getRecommendFee = async () => {
+  try {
+    let response = await axios.get("https://mempool.space/api/v1/fees/recommended");
+    const fees = response.data;
+    console.log("Fees:", fees);
+    const maxFee = (fees as any).fastestFee + 10;
+    return maxFee;
+  } catch (e) { }
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 // Start of Command Line Options Definitions
@@ -1563,7 +1573,7 @@ program.command('mint-dft')
   .option('--rbf', 'Whether to enable RBF for transactions.')
   .option('--initialowner <string>', 'Assign claimed tokens into this address')
   .option('--funding <string>', 'Use wallet alias wif key to be used for funding and change')
-  .option('--satsbyte <number>', 'Satoshis per byte in fees', '150')
+  .option('--satsbyte <number>', 'Satoshis per byte in fees', '15')
   .option('--disablechalk', 'Whether to disable the real-time chalked logging of each hash for Bitwork mining. Improvements mining performance to set this flag')
   .action(async (ticker, options) => {
     try {
@@ -1573,14 +1583,33 @@ program.command('mint-dft')
       const atomicals = new Atomicals(ElectrumApi.createClient(process.env.ELECTRUMX_PROXY_BASE_URL || ''));
       let walletRecord = resolveWalletAliasNew(walletInfo, options.initialowner, walletInfo.primary);
       let fundingRecord = resolveWalletAliasNew(walletInfo, options.funding, walletInfo.funding);
-      const sats = parseInt(options.satsbyte);
+      
 
       const envReceiverAddress = process.env.RECEIVER_ADDRESS || '';
       let toAddress = envReceiverAddress != '' ? envReceiverAddress : walletRecord.address;
 
+      //当前未确认交易数
+      const history: any = await atomicals.getHistory(fundingRecord.address);
+      let unconfirmed = 0
+      for (let { tx_hash, height } of history.data.history) {
+        if ((height as number) <= 0) {
+          unconfirmed ++;
+        }
+      }
+
+      if (unconfirmed >= 11) {
+        console.log(`${fundingRecord.address} ${unconfirmed} unconfirmed utxos`)
+        return;
+      }
+
+      let currentFee = await getRecommendFee();
+      const feeRate = Math.min(parseInt(options.satsbyte),currentFee);
+
+      console.log('set fee:',feeRate,unconfirmed);
+
       const result: any = await atomicals.mintDftInteractive({
         rbf: options.rbf,
-        satsbyte: parseInt(options.satsbyte),
+        satsbyte: feeRate,
         disableMiningChalk: options.disablechalk,
       }, toAddress, ticker, fundingRecord.WIF);
       handleResultLogging(result, true);

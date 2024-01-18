@@ -1166,7 +1166,7 @@ export class AtomicalOperationBuilder {
         } else if (hashLockP2TROutputLen <= 0xffffffff) {
             hashLockCompactSizeBytes = 5;
         }
-        let bitR = performBitworkForRevealTx ? 1 : 0;
+        let bitR = performBitworkForRevealTx ? 34 : 0;
         return Math.ceil(
             (this.options.satsbyte as any) *
                 (BASE_BYTES +
@@ -1177,7 +1177,7 @@ export class AtomicalOperationBuilder {
                     this.inputUtxos.length * INPUT_BYTES_BASE +
                     // Outputs
                     this.additionalOutputs.length * OUTPUT_BYTES_BASE +
-                    bitR * OUTPUT_BYTES_BASE)
+                    bitR)
         );
     }
 
