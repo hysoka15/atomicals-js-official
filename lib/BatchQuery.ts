@@ -135,8 +135,13 @@ async function getRealTimeGas() {
 }
 
 async function main(){
-    let containerName = 'fishfaceman';
-    for(let i = 9000;i > 8000;i --){
+    let containerName = 'atomdragons2024';
+    let mintAmount = 0;
+    let maxAmount = 5;
+    for(let i = 2023;i > 1000;i --){
+      if(mintAmount >= maxAmount){
+        break;
+      }
         try {
             let itemId = i.toString();
             itemId = String(itemId).padStart(5, '0');
@@ -148,7 +153,9 @@ async function main(){
             if(result.success == true && result.data.status == undefined)
             {
                 console.log('漏网之鱼',itemId);
-                const satsbyte = 70;
+                let satsbyteStr = process.env.satsbyteMint || '';
+                let satsbyte = parseInt(satsbyteStr);
+                // const satsbyte = 70;
                 const manifestFile = `./${containerName}/item-${itemId}.json`
 
                 const walletInfo = await validateWalletStorage();
@@ -163,6 +170,7 @@ async function main(){
                   satsbyte: satsbyte,
                 }, containerName, itemId, manifestFile, initialOwnerAddress.address, fundingRecord.WIF, ownerWalletRecord);
                 handleResultLogging(result, true);
+                mintAmount ++;
             }else
             {
               console.log(itemId,'已经被占');
