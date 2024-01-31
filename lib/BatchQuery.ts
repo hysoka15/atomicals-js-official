@@ -168,7 +168,7 @@ async function main(){
                   ctx: undefined,
                   init: undefined,
                   satsbyte: satsbyte,
-                }, containerName, itemId, manifestFile, initialOwnerAddress.address, fundingRecord.WIF, ownerWalletRecord);
+                }, containerName, itemId, manifestFile, initialOwnerAddress.address, fundingRecord.WIF);
                 handleResultLogging(result, true);
                 mintAmount ++;
             }else
